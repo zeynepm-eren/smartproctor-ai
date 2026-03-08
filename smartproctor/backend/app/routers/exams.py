@@ -41,7 +41,7 @@ async def list_exams(
             .join(CourseEnrollment, CourseEnrollment.course_id == Course.id)
             .where(
                 CourseEnrollment.student_id == current_user.id,
-                Exam.status.in_(["scheduled", "active"]),
+                Exam.status.in_([ExamStatus.scheduled, ExamStatus.active]),
             )
             .options(selectinload(Exam.questions))
         )

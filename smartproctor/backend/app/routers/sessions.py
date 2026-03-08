@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
-from app.models.exam import Exam, Question, Option
+from app.models.exam import Exam, Question, Option, ExamStatus
 from app.models.session import ExamSession, StudentAnswer, SessionStatus
 from app.models.course import CourseEnrollment
 from app.schemas.session import (
@@ -37,7 +37,7 @@ async def start_exam_session(
     if not exam:
         raise HTTPException(status_code=404, detail="Sınav bulunamadı")
 
-    if exam.status.value not in ("active", "scheduled"):
+    if exam.status not in (ExamStatus.active, ExamStatus.scheduled):
         raise HTTPException(status_code=400, detail="Sınav aktif değil")
 
     # Kayıt kontrolü
