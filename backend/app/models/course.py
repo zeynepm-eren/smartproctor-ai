@@ -4,7 +4,7 @@ Eğitmenin oluşturduğu dersler ve öğrenci kayıtları.
 """
 
 from datetime import datetime
-from sqlalchemy import BigInteger, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import BigInteger, String, Text, Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -14,8 +14,8 @@ class Course(Base):
     __table_args__ = {"schema": "smartproctor"}
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    instructor_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("smartproctor.users.id", ondelete="SET NULL"), nullable=True
+    instructor_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("smartproctor.users.id", ondelete="RESTRICT"), nullable=False
     )
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -33,10 +33,7 @@ class Course(Base):
 
 class CourseEnrollment(Base):
     __tablename__ = "course_enrollments"
-    __table_args__ = (
-        UniqueConstraint('course_id', 'student_id', name='uq_course_student'),
-        {"schema": "smartproctor"}
-    )
+    __table_args__ = {"schema": "smartproctor"}
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     course_id: Mapped[int] = mapped_column(

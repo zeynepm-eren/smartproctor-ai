@@ -19,11 +19,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # Secret keys for role-based registration
-    ADMIN_SECRET_KEY: str = "admin-secret-2024-smartproctor"
-    INSTRUCTOR_SECRET_KEY: str = "instructor-secret-2024-smartproctor"
-    PROCTOR_SECRET_KEY: str = "proctor-secret-2024-smartproctor"
-
     # CORS
     CORS_ORIGINS: str = '["http://localhost:5173","http://localhost:3000"]'
 

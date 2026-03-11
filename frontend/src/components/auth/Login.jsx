@@ -25,6 +25,7 @@ export default function Login() {
       const user = await login(email, password)
       // Role göre yönlendir
       switch (user.role) {
+	case 'admin': navigate('/admin'); break
         case 'instructor': navigate('/instructor'); break
         case 'proctor': navigate('/proctor'); break
         default: navigate('/student'); break

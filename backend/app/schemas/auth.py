@@ -12,8 +12,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=128)
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
-    role: str = Field(default="student", pattern="^(student|instructor|proctor|admin)$")
-    secret_key: Optional[str] = None  # Eğitmen/Gözetmen/Admin kaydı için
+    role: str = Field(default="student", pattern="^(student|instructor|proctor)$")
 
 
 class LoginRequest(BaseModel):

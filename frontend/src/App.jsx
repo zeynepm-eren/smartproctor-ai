@@ -74,7 +74,6 @@ export default function App() {
               <Route path="/student" element={<StudentDashboard />} />
               <Route path="/student/history" element={<StudentHistory />} />
             </Route>
-            {/* Sınav arayüzü - tam ekran (layout dışı) */}
             <Route path="/student/exam/:examId" element={<ExamInterface />} />
           </Route>
 
