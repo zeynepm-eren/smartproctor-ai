@@ -1,6 +1,6 @@
 """
 SmartProctor - Kimlik Doğrulama Router
-/register, /login, /refresh, /me endpoint'leri.
+Eğitmen/Gözetmen kaydı için gizli anahtar zorunlu.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -23,14 +23,32 @@ from app.schemas.auth import (
 
 router = APIRouter(prefix="/api/auth", tags=["Kimlik Doğrulama"])
 
+# Eğitmen ve Gözetmen kayıt için gizli anahtarlar
+INSTRUCTOR_SECRET_KEY = settings.INSTRUCTOR_SECRET_KEY
+PROCTOR_SECRET_KEY = settings.PROCTOR_SECRET_KEY
+
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Yeni kullanıcı kaydı oluşturur."""
+    """Yeni kullanıcı kaydı. Eğitmen/Gözetmen için gizli anahtar zorunlu."""
     # Email kontrolü
     existing = await db.execute(select(User).where(User.email == req.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı")
+
+    # Eğitmen ve Gözetmen için gizli anahtar kontrolü
+    if req.role == "instructor":
+        if not req.secret_key or req.secret_key != INSTRUCTOR_SECRET_KEY:
+            raise HTTPException(
+                status_code=403,
+                detail="Eğitmen kaydı için geçerli bir gizli anahtar gereklidir"
+            )
+    elif req.role == "proctor":
+        if not req.secret_key or req.secret_key != PROCTOR_SECRET_KEY:
+            raise HTTPException(
+                status_code=403,
+                detail="Gözetmen kaydı için geçerli bir gizli anahtar gereklidir"
+            )
 
     user = User(
         email=req.email,
@@ -47,76 +65,58 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Email ve şifre ile giriş yapar, JWT token döndürür."""
     result = await db.execute(select(User).where(User.email == req.email))
     user = result.scalar_one_or_none()
-
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Geçersiz email veya şifre")
-
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Hesap devre dışı")
 
-    # Token'ları oluştur
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
-    # Refresh token'ı veritabanına kaydet
     rt = RefreshToken(
-        user_id=user.id,
-        token=refresh_token,
+        user_id=user.id, token=refresh_token,
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(rt)
-
-    # Son giriş zamanını güncelle
     user.last_login_at = datetime.now(timezone.utc)
-
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    """Refresh token ile yeni access token alır."""
     payload = decode_token(req.refresh_token)
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Geçersiz refresh token")
 
-    # Veritabanında token kontrolü
     result = await db.execute(
         select(RefreshToken).where(
-            RefreshToken.token == req.refresh_token,
-            RefreshToken.revoked == False,
+            RefreshToken.token == req.refresh_token, RefreshToken.revoked == False,
         )
     )
     stored_token = result.scalar_one_or_none()
     if not stored_token:
         raise HTTPException(status_code=401, detail="Token iptal edilmiş veya bulunamadı")
 
-    # Eski token'ı iptal et
     stored_token.revoked = True
-
     user_id = payload["sub"]
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="Kullanıcı bulunamadı")
 
-    # Yeni token'lar oluştur
     new_access = create_access_token({"sub": str(user.id), "role": user.role.value})
     new_refresh = create_refresh_token({"sub": str(user.id)})
-
     rt = RefreshToken(
-        user_id=user.id,
-        token=new_refresh,
+        user_id=user.id, token=new_refresh,
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(rt)
-
     return TokenResponse(access_token=new_access, refresh_token=new_refresh)
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
-    """Mevcut kullanıcı bilgilerini döndürür."""
     return current_user
+

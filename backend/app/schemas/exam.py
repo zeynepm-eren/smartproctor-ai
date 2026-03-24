@@ -7,7 +7,6 @@ from typing import Optional, List
 from datetime import datetime
 
 
-# --- Seçenek ---
 class OptionCreate(BaseModel):
     body: str
     is_correct: bool = False
@@ -19,22 +18,18 @@ class OptionResponse(BaseModel):
     body: str
     is_correct: bool
     sort_order: int
-
     class Config:
         from_attributes = True
 
 
 class OptionResponseStudent(BaseModel):
-    """Öğrenci için - doğru cevap gizli."""
     id: int
     body: str
     sort_order: int
-
     class Config:
         from_attributes = True
 
 
-# --- Soru ---
 class QuestionCreate(BaseModel):
     question_type: str = "multiple_choice"
     body: str
@@ -42,6 +37,15 @@ class QuestionCreate(BaseModel):
     sort_order: int = 0
     explanation: Optional[str] = None
     options: List[OptionCreate] = []
+
+
+class QuestionUpdate(BaseModel):
+    question_type: Optional[str] = None
+    body: Optional[str] = None
+    points: Optional[float] = None
+    sort_order: Optional[int] = None
+    explanation: Optional[str] = None
+    options: Optional[List[OptionCreate]] = None
 
 
 class QuestionResponse(BaseModel):
@@ -53,25 +57,21 @@ class QuestionResponse(BaseModel):
     sort_order: int
     explanation: Optional[str]
     options: List[OptionResponse] = []
-
     class Config:
         from_attributes = True
 
 
 class QuestionResponseStudent(BaseModel):
-    """Öğrenci sınav görünümü - doğru cevap ve açıklama gizli."""
     id: int
     question_type: str
     body: str
     points: float
     sort_order: int
     options: List[OptionResponseStudent] = []
-
     class Config:
         from_attributes = True
 
 
-# --- Sınav ---
 class ExamCreate(BaseModel):
     course_id: int
     title: str = Field(..., max_length=255)
@@ -80,7 +80,6 @@ class ExamCreate(BaseModel):
     pass_score: Optional[float] = None
     shuffle_questions: bool = False
     shuffle_options: bool = False
-    max_tab_switches: int = 3
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
@@ -93,7 +92,6 @@ class ExamUpdate(BaseModel):
     pass_score: Optional[float] = None
     shuffle_questions: Optional[bool] = None
     shuffle_options: Optional[bool] = None
-    max_tab_switches: Optional[int] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
@@ -108,11 +106,9 @@ class ExamResponse(BaseModel):
     pass_score: Optional[float]
     shuffle_questions: bool
     shuffle_options: bool
-    max_tab_switches: int
     start_time: Optional[datetime]
     end_time: Optional[datetime]
     created_at: datetime
     question_count: Optional[int] = None
-
     class Config:
         from_attributes = True

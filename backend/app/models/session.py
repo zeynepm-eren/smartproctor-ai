@@ -1,6 +1,5 @@
 """
 SmartProctor - Sınav Oturumu ve Öğrenci Cevapları Modelleri
-Öğrencinin sınav oturumu sırasındaki durumu ve cevapları.
 """
 
 import enum
@@ -43,6 +42,7 @@ class ExamSession(Base):
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     tab_switch_count: Mapped[int] = mapped_column(Integer, default=0)
     score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

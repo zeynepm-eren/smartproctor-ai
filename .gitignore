@@ -23,3 +23,8 @@ Thumbs.db
 
 # Uploads
 backend/static/evidence/*.webm
+
+# Gereksiz
+backend/package-lock.json
+backend/package.json
+docker-compose.yml

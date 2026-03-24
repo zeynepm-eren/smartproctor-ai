@@ -1,17 +1,30 @@
 """
 SmartProctor - İhlal ve Doğrulama Modelleri
 AI/tarayıcı ihlalleri, çift kör doğrulama ve uyuşmazlık çözümü.
-+ Yeni ihlal tipleri: NO_FACE, HEAD_TURN, CONNECTION_LOST, KEYBOARD_SHORTCUT
 """
 
 import enum
 from datetime import datetime
 from sqlalchemy import (
-    BigInteger, String, Text, Numeric, DateTime, Enum, ForeignKey, func
+    BigInteger, String, Text, Boolean, Numeric, DateTime, Enum, ForeignKey, func
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
+
+
+# AI ihlal tipleri (gözetmene değerlendirme olarak gider)
+AI_VIOLATION_TYPES = {
+    'GAZE_LEFT', 'GAZE_RIGHT', 'HEAD_TURN',
+    'NO_FACE', 'MULTIPLE_FACES',
+    'PHONE_DETECTED', 'MULTIPLE_PERSONS',
+}
+
+# Tarayıcı ihlal tipleri (sadece raporda sayı olarak gösterilir)
+BROWSER_VIOLATION_TYPES = {
+    'TAB_SWITCH', 'FULLSCREEN_EXIT', 'COPY_PASTE',
+    'RIGHT_CLICK', 'DEVTOOLS', 'KEYBOARD_SHORTCUT',
+}
 
 
 class ViolationType(str, enum.Enum):
@@ -21,24 +34,24 @@ class ViolationType(str, enum.Enum):
     COPY_PASTE = "COPY_PASTE"
     RIGHT_CLICK = "RIGHT_CLICK"
     DEVTOOLS = "DEVTOOLS"
-    KEYBOARD_SHORTCUT = "KEYBOARD_SHORTCUT"  # Yeni: Ctrl+C, Alt+Tab vb.
-    
+    KEYBOARD_SHORTCUT = "KEYBOARD_SHORTCUT"
+
     # AI İhlalleri - Bakış
     GAZE_LEFT = "GAZE_LEFT"
     GAZE_RIGHT = "GAZE_RIGHT"
-    HEAD_TURN = "HEAD_TURN"  # Yeni: Baş çevirme (yaw/pitch threshold)
-    
+    HEAD_TURN = "HEAD_TURN"
+
     # AI İhlalleri - Yüz
-    NO_FACE = "NO_FACE"  # Yeni: Yüz tespit edilemedi
-    MULTIPLE_FACES = "MULTIPLE_FACES"  # Yeni isim (MULTIPLE_PERSONS yerine)
-    
+    NO_FACE = "NO_FACE"
+    MULTIPLE_FACES = "MULTIPLE_FACES"
+
     # AI İhlalleri - Nesne
     PHONE_DETECTED = "PHONE_DETECTED"
     MULTIPLE_PERSONS = "MULTIPLE_PERSONS"
-    
+
     # Bağlantı
-    CONNECTION_LOST = "CONNECTION_LOST"  # Yeni: Heartbeat kesildi
-    
+    CONNECTION_LOST = "CONNECTION_LOST"
+
     # Diğer
     OTHER = "OTHER"
 
@@ -71,6 +84,7 @@ class Violation(Base):
     metadata_json: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
     video_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     thumbnail_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    is_ai_violation: Mapped[bool] = mapped_column(Boolean, default=False)
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

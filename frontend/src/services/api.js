@@ -43,6 +43,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
   getUsers: (params) => api.get('/auth/users', { params }),
+  deleteUser: (id) => api.delete(`/auth/users/${id}`),
   getInstructors: () => api.get('/auth/instructors'),
   getStudents: () => api.get('/auth/students'),
   getProctors: () => api.get('/auth/proctors'),
@@ -67,7 +68,10 @@ export const examAPI = {
   create: (data) => api.post('/exams/', data),
   get: (id) => api.get(`/exams/${id}`),
   update: (id, data) => api.put(`/exams/${id}`, data),
+  delete: (id) => api.delete(`/exams/${id}`),
   addQuestion: (examId, data) => api.post(`/exams/${examId}/questions`, data),
+  updateQuestion: (examId, questionId, data) => api.put(`/exams/${examId}/questions/${questionId}`, data),
+  deleteQuestion: (examId, questionId) => api.delete(`/exams/${examId}/questions/${questionId}`),
   listQuestions: (examId) => api.get(`/exams/${examId}/questions`),
   listQuestionsStudent: (examId) => api.get(`/exams/${examId}/questions/student`),
 }
@@ -82,13 +86,36 @@ export const sessionAPI = {
 
 export const violationAPI = {
   log: (data) => api.post('/violations/log', data),
-  uploadEvidence: (violationId, formData) => api.post(`/violations/upload-evidence/${violationId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  uploadEvidence: (violationId, blob) => {
+    const formData = new FormData()
+    formData.append('video', blob, 'evidence.webm')
+    return api.post(`/violations/upload-evidence/${violationId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
   pendingReviews: () => api.get('/violations/pending-reviews'),
   submitReview: (violationId, data) => api.post(`/violations/review/${violationId}`, data),
   listConflicts: () => api.get('/violations/conflicts'),
   resolveConflict: (violationId, data) => api.post(`/violations/conflicts/${violationId}/resolve`, data),
   heartbeat: (sessionId) => api.post(`/violations/heartbeat/${sessionId}`),
   heartbeatStatus: (sessionId) => api.get(`/violations/heartbeat/${sessionId}/status`),
+  sessionReport: (sessionId) => api.get(`/violations/session/${sessionId}/report`),
+}
+
+// violationApi.js uyumluluğu — hook'lar bu fonksiyonları kullanıyor
+export async function logViolation(data) {
+  const res = await violationAPI.log(data)
+  return res.data
+}
+
+export async function uploadEvidence(violationId, blob) {
+  const res = await violationAPI.uploadEvidence(violationId, blob)
+  return res.data
+}
+
+export async function sendHeartbeat(sessionId) {
+  const res = await violationAPI.heartbeat(sessionId)
+  return res.data
 }
 
 export const notificationAPI = {

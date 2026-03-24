@@ -1,6 +1,5 @@
 """
 SmartProctor - Model Paketi
-Tüm SQLAlchemy modellerini dışa aktarır.
 """
 
 from app.models.user import User, UserRole
@@ -11,6 +10,7 @@ from app.models.session import ExamSession, StudentAnswer, SessionStatus
 from app.models.violation import (
     Violation, ViolationReview, ConflictResolution,
     ViolationType, VerificationDecision, ConflictResolutionStatus,
+    AI_VIOLATION_TYPES, BROWSER_VIOLATION_TYPES,
 )
 from app.models.proctor import ProctorAssignment, AuditLog, Notification
 
@@ -22,5 +22,6 @@ __all__ = [
     "ExamSession", "StudentAnswer", "SessionStatus",
     "Violation", "ViolationReview", "ConflictResolution",
     "ViolationType", "VerificationDecision", "ConflictResolutionStatus",
+    "AI_VIOLATION_TYPES", "BROWSER_VIOLATION_TYPES",
     "ProctorAssignment", "AuditLog", "Notification",
 ]

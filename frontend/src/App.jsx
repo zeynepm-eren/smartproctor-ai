@@ -1,58 +1,34 @@
-/**
- * SmartProctor - Ana Uygulama Bileşeni
- * React Router ile rol tabanlı sayfa yönlendirmesi.
- */
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
-// Auth
 import Login from './components/auth/Login'
 import Register from './components/auth/Register'
-
-// Layout
 import { ProtectedRoute, DashboardLayout } from './components/layout/Layout'
-
-// Dashboards
 import StudentDashboard from './components/dashboard/StudentDashboard'
 import StudentHistory from './components/dashboard/StudentHistory'
 import InstructorDashboard from './components/dashboard/InstructorDashboard'
-
-// Instructor
 import InstructorExams from './components/instructor/InstructorExams'
 import ExamCreate from './components/instructor/ExamCreate'
 import ExamEdit from './components/instructor/ExamEdit'
 import ExamStats from './components/instructor/ExamStats'
 import ConflictResolution from './components/instructor/ConflictResolution'
-import ProctorAssign from './components/instructor/ProctorAssign'
 import InstructorStudents from './components/instructor/InstructorStudents'
-
-// Exam
 import ExamInterface from './components/exam/ExamInterface'
-
-// Proctor
 import ProctorDashboard from './components/proctor/ProctorDashboard'
-
-// Admin
 import AdminDashboard from './components/admin/AdminDashboard'
 import AdminCourses from './components/admin/AdminCourses'
 import AdminUsers from './components/admin/AdminUsers'
 import AdminEnrollments from './components/admin/AdminEnrollments'
 
-/** Ana sayfa yönlendirmesi: Role göre dashboard'a atar. */
 function HomeRedirect() {
   const { user, loading } = useAuth()
   if (loading) return null
   if (!user) return <Navigate to="/login" replace />
   switch (user.role) {
-    case 'admin':
-      return <Navigate to="/admin" replace />
-    case 'instructor':
-      return <Navigate to="/instructor" replace />
-    case 'proctor':
-      return <Navigate to="/proctor" replace />
-    default:
-      return <Navigate to="/student" replace />
+    case 'admin': return <Navigate to="/admin" replace />
+    case 'instructor': return <Navigate to="/instructor" replace />
+    case 'proctor': return <Navigate to="/proctor" replace />
+    default: return <Navigate to="/student" replace />
   }
 }
 
@@ -61,14 +37,11 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-
-          {/* Ana sayfa yönlendirme */}
           <Route path="/" element={<HomeRedirect />} />
 
-          {/* Öğrenci Rotaları */}
+          {/* Öğrenci */}
           <Route element={<ProtectedRoute allowedRoles={['student']} />}>
             <Route element={<DashboardLayout />}>
               <Route path="/student" element={<StudentDashboard />} />
@@ -77,7 +50,7 @@ export default function App() {
             <Route path="/student/exam/:examId" element={<ExamInterface />} />
           </Route>
 
-          {/* Eğitmen Rotaları */}
+          {/* Eğitmen — gözetmen ata kaldırıldı */}
           <Route element={<ProtectedRoute allowedRoles={['instructor']} />}>
             <Route element={<DashboardLayout />}>
               <Route path="/instructor" element={<InstructorDashboard />} />
@@ -87,18 +60,17 @@ export default function App() {
               <Route path="/instructor/exams/:examId/stats" element={<ExamStats />} />
               <Route path="/instructor/students" element={<InstructorStudents />} />
               <Route path="/instructor/conflicts" element={<ConflictResolution />} />
-              <Route path="/instructor/proctors" element={<ProctorAssign />} />
             </Route>
           </Route>
 
-          {/* Gözetmen Rotaları */}
+          {/* Gözetmen */}
           <Route element={<ProtectedRoute allowedRoles={['proctor']} />}>
             <Route element={<DashboardLayout />}>
               <Route path="/proctor" element={<ProctorDashboard />} />
             </Route>
           </Route>
 
-          {/* Admin Rotaları */}
+          {/* Admin */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
             <Route element={<DashboardLayout />}>
               <Route path="/admin" element={<AdminDashboard />} />
@@ -108,7 +80,6 @@ export default function App() {
             </Route>
           </Route>
 
-          {/* 404 */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

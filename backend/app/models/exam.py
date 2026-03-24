@@ -1,6 +1,5 @@
 """
 SmartProctor - Sınav, Soru ve Seçenek Modelleri
-Sınav motoru için temel veri modelleri.
 """
 
 import enum
@@ -44,7 +43,6 @@ class Exam(Base):
     pass_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     shuffle_questions: Mapped[bool] = mapped_column(Boolean, default=False)
     shuffle_options: Mapped[bool] = mapped_column(Boolean, default=False)
-    max_tab_switches: Mapped[int] = mapped_column(Integer, default=3)
     start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -1,6 +1,5 @@
 """
 SmartProctor - Kimlik Doğrulama Şemaları
-Register, Login ve Token response şemaları.
 """
 
 from pydantic import BaseModel, EmailStr, Field
@@ -13,6 +12,7 @@ class RegisterRequest(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     role: str = Field(default="student", pattern="^(student|instructor|proctor)$")
+    secret_key: Optional[str] = None  # Eğitmen/Gözetmen kayıt için gizli anahtar
 
 
 class LoginRequest(BaseModel):
@@ -37,6 +37,5 @@ class UserResponse(BaseModel):
     last_name: str
     role: str
     is_active: bool
-
     class Config:
         from_attributes = True

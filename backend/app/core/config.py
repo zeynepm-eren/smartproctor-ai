@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Dosya yükleme
+    INSTRUCTOR_SECRET_KEY: str = "instructor-secret-2024-smartproctor"
+    PROCTOR_SECRET_KEY: str = "proctor-secret-2024-smartproctor"
     UPLOAD_DIR: str = "./static/evidence"
     MAX_UPLOAD_SIZE: int = 52428800  # 50MB
 

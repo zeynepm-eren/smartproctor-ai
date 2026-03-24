@@ -1,15 +1,16 @@
 /**
  * SmartProctor - Kayıt Sayfası
+ * Eğitmen/Gözetmen kaydı için gizli anahtar zorunlu.
  */
 
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { Shield, UserPlus } from 'lucide-react'
+import { Shield, UserPlus, Key } from 'lucide-react'
 
 export default function Register() {
   const [form, setForm] = useState({
-    email: '', password: '', first_name: '', last_name: '', role: 'student',
+    email: '', password: '', first_name: '', last_name: '', role: 'student', secret_key: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,12 +19,22 @@ export default function Register() {
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
+  const needsSecretKey = form.role === 'instructor' || form.role === 'proctor'
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    if (needsSecretKey && !form.secret_key.trim()) {
+      setError('Bu rol için gizli anahtar gereklidir')
+      return
+    }
+
     setLoading(true)
     try {
-      await register(form)
+      const data = { ...form }
+      if (!needsSecretKey) delete data.secret_key
+      await register(data)
       navigate('/login')
     } catch (err) {
       setError(err.response?.data?.detail || 'Kayıt başarısız')
@@ -82,6 +93,27 @@ export default function Register() {
                 <option value="proctor">Gözetmen</option>
               </select>
             </div>
+
+            {needsSecretKey && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Key size={14} className="inline mr-1" />
+                  Gizli Anahtar
+                </label>
+                <input
+                  type="password"
+                  name="secret_key"
+                  value={form.secret_key}
+                  onChange={handleChange}
+                  placeholder={form.role === 'instructor' ? 'Eğitmen gizli anahtarı' : 'Gözetmen gizli anahtarı'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  required
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Bu rol için yönetici tarafından sağlanan gizli anahtar gereklidir.
+                </p>
+              </div>
+            )}
 
             <button type="submit" disabled={loading}
               className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { authAPI } from '../../services/api'
-import { Users, Search, Loader2 } from 'lucide-react'
+import { Users, Search, Loader2, Trash2 } from 'lucide-react'
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([])
@@ -17,6 +17,16 @@ export default function AdminUsers() {
       setUsers(res.data)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
+  }
+
+  const handleDelete = async (userId, email) => {
+    if (!confirm(`"${email}" kullanıcısını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) return
+    try {
+      await authAPI.deleteUser(userId)
+      loadUsers()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Silme işlemi başarısız')
+    }
   }
 
   const filtered = users.filter(u =>
@@ -56,6 +66,7 @@ export default function AdminUsers() {
               <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Email</th>
               <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Rol</th>
               <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Durum</th>
+              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">İşlem</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -72,6 +83,17 @@ export default function AdminUsers() {
                   <span className={`px-2 py-1 rounded-full text-xs ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                     {user.is_active ? 'Aktif' : 'Pasif'}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  {user.role !== 'admin' && (
+                    <button
+                      onClick={() => handleDelete(user.id, user.email)}
+                      className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition"
+                      title="Kullanıcıyı sil"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

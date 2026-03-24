@@ -17,10 +17,7 @@ export default function Navbar() {
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
+  const handleLogout = () => { logout(); navigate('/login') }
 
   const menuItems = {
     student: [
@@ -31,7 +28,6 @@ export default function Navbar() {
       { label: 'Panel', path: '/instructor' },
       { label: 'Sınavlar', path: '/instructor/exams' },
       { label: 'Öğrenciler', path: '/instructor/students' },
-      { label: 'Gözetmen Ata', path: '/instructor/proctors' },
       { label: 'Uyuşmazlıklar', path: '/instructor/conflicts' },
     ],
     proctor: [

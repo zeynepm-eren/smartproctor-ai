@@ -1,13 +1,12 @@
 """
-SmartProctor - Sınav Oturumu Router
-Sınav başlatma, cevap kaydetme (debounce), sınav bitirme ve otomatik puanlama.
+SmartProctor - Sinav Oturumu Router
 """
 
 from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func as sqlfunc
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -20,7 +19,7 @@ from app.schemas.session import (
     SessionFinishResponse, SessionResponse,
 )
 
-router = APIRouter(prefix="/api/sessions", tags=["Sınav Oturumları"])
+router = APIRouter(prefix="/api/sessions", tags=["Sinav Oturumlari"])
 
 
 @router.post("/start/{exam_id}", response_model=SessionStartResponse)
@@ -30,17 +29,14 @@ async def start_exam_session(
     current_user: User = Depends(require_role("student")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Öğrenci sınava başlar - oturum oluşturulur."""
-    # Sınav kontrolü
     result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = result.scalar_one_or_none()
     if not exam:
-        raise HTTPException(status_code=404, detail="Sınav bulunamadı")
+        raise HTTPException(status_code=404, detail="Sinav bulunamadi")
 
     if exam.status not in (ExamStatus.active, ExamStatus.scheduled):
-        raise HTTPException(status_code=400, detail="Sınav aktif değil")
+        raise HTTPException(status_code=400, detail="Sinav aktif degil")
 
-    # Kayıt kontrolü
     result = await db.execute(
         select(CourseEnrollment).where(
             CourseEnrollment.course_id == exam.course_id,
@@ -48,9 +44,8 @@ async def start_exam_session(
         )
     )
     if not result.scalar_one_or_none():
-        raise HTTPException(status_code=403, detail="Bu derse kayıtlı değilsiniz")
+        raise HTTPException(status_code=403, detail="Bu derse kayitli degilsiniz")
 
-    # Mevcut oturum kontrolü
     result = await db.execute(
         select(ExamSession).where(
             ExamSession.exam_id == exam_id,
@@ -60,8 +55,7 @@ async def start_exam_session(
     existing = result.scalar_one_or_none()
     if existing:
         if existing.status.value in ("submitted", "timed_out", "terminated"):
-            raise HTTPException(status_code=400, detail="Bu sınavı zaten tamamladınız")
-        # Devam eden oturumu döndür
+            raise HTTPException(status_code=400, detail="Bu sinavi zaten tamamladiniz")
         return SessionStartResponse(
             session_id=existing.id,
             exam_id=existing.exam_id,
@@ -70,13 +64,14 @@ async def start_exam_session(
             status=existing.status.value,
         )
 
-    # Yeni oturum oluştur
+    now = datetime.now(timezone.utc)
     session = ExamSession(
         exam_id=exam_id,
         student_id=current_user.id,
         status=SessionStatus.in_progress,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
+        last_heartbeat=now,
     )
     db.add(session)
     await db.flush()
@@ -97,11 +92,6 @@ async def submit_answer(
     current_user: User = Depends(require_role("student")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Cevap kaydeder (debounce mekanizması ile).
-    Aynı soru için tekrar gönderilirse günceller.
-    """
-    # Aktif oturum bul
     result = await db.execute(
         select(ExamSession).where(
             ExamSession.student_id == current_user.id,
@@ -110,9 +100,8 @@ async def submit_answer(
     )
     session = result.scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=400, detail="Aktif sınav oturumu bulunamadı")
+        raise HTTPException(status_code=400, detail="Aktif sinav oturumu bulunamadi")
 
-    # Mevcut cevap kontrolü (upsert mantığı)
     result = await db.execute(
         select(StudentAnswer).where(
             StudentAnswer.session_id == session.id,
@@ -145,7 +134,6 @@ async def finish_exam(
     current_user: User = Depends(require_role("student")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sınavı bitirir ve otomatik puanlama yapar."""
     result = await db.execute(
         select(ExamSession).where(
             ExamSession.id == session_id,
@@ -154,21 +142,24 @@ async def finish_exam(
     )
     session = result.scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=404, detail="Oturum bulunamadı")
+        raise HTTPException(status_code=404, detail="Oturum bulunamadi")
 
-    if session.status.value in ("submitted", "timed_out"):
-        raise HTTPException(status_code=400, detail="Sınav zaten tamamlanmış")
+    if session.status.value in ("submitted", "timed_out", "terminated"):
+        return SessionFinishResponse(
+            session_id=session.id,
+            status=session.status.value,
+            score=session.score,
+            finished_at=session.finished_at or datetime.now(timezone.utc),
+            total_questions=0,
+            correct_answers=0,
+        )
 
-    # Otomatik puanlama
     result = await db.execute(
-        select(StudentAnswer)
-        .where(StudentAnswer.session_id == session.id)
+        select(StudentAnswer).where(StudentAnswer.session_id == session.id)
     )
     answers = result.scalars().all()
 
-    # Her cevap için doğruluğu kontrol et
     correct_count = 0
-    total_points = 0
     earned_points = 0
 
     result = await db.execute(
@@ -181,21 +172,15 @@ async def finish_exam(
 
     for answer in answers:
         question = question_map.get(answer.question_id)
-        if question:
-            total_points += float(question.points)
-            if answer.selected_option_id:
-                # Doğru seçeneği bul
-                correct_option = next(
-                    (o for o in question.options if o.is_correct), None
-                )
-                if correct_option and answer.selected_option_id == correct_option.id:
-                    answer.is_correct = True
-                    correct_count += 1
-                    earned_points += float(question.points)
-                else:
-                    answer.is_correct = False
+        if question and answer.selected_option_id:
+            correct_option = next((o for o in question.options if o.is_correct), None)
+            if correct_option and answer.selected_option_id == correct_option.id:
+                answer.is_correct = True
+                correct_count += 1
+                earned_points += float(question.points)
+            else:
+                answer.is_correct = False
 
-    # Toplam puan hesapla
     total_possible = sum(float(q.points) for q in questions)
     score = (earned_points / total_possible * 100) if total_possible > 0 else 0
 
@@ -221,7 +206,6 @@ async def log_tab_switch(
     current_user: User = Depends(require_role("student")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sekme değişikliğini loglar ve sayacı artırır."""
     result = await db.execute(
         select(ExamSession).where(
             ExamSession.id == session_id,
@@ -230,26 +214,14 @@ async def log_tab_switch(
     )
     session = result.scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=404, detail="Oturum bulunamadı")
+        raise HTTPException(status_code=404, detail="Oturum bulunamadi")
 
     session.tab_switch_count += 1
-
-    # Sınav limiti kontrolü
-    result = await db.execute(select(Exam).where(Exam.id == session.exam_id))
-    exam = result.scalar_one_or_none()
-
-    terminated = False
-    if exam and session.tab_switch_count >= exam.max_tab_switches:
-        session.status = SessionStatus.terminated
-        session.finished_at = datetime.now(timezone.utc)
-        terminated = True
-
     await db.flush()
 
     return {
         "tab_switch_count": session.tab_switch_count,
-        "max_allowed": exam.max_tab_switches if exam else 3,
-        "terminated": terminated,
+        "terminated": False,
     }
 
 
@@ -258,7 +230,6 @@ async def my_sessions(
     current_user: User = Depends(require_role("student")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Öğrencinin tüm sınav oturumlarını listeler."""
     result = await db.execute(
         select(ExamSession).where(ExamSession.student_id == current_user.id)
     )

@@ -1,7 +1,5 @@
 """
 SmartProctor - Ana Uygulama Giriş Noktası
-FastAPI uygulamasını yapılandırır ve tüm router'ları bağlar.
-+ Zombie Hunter background task
 """
 
 from contextlib import asynccontextmanager
@@ -17,24 +15,14 @@ from app.services.heartbeat import set_db_session_factory, start_zombie_hunter, 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Uygulama başlangıç ve bitiş olaylarını yönetir.
-    - Başlangıçta Zombie Hunter'ı başlat
-    - Bitişte Zombie Hunter'ı durdur
-    """
-    # Startup
     set_db_session_factory(async_session_factory)
     start_zombie_hunter()
     print("[SmartProctor] Uygulama başlatıldı")
-    
     yield
-    
-    # Shutdown
     stop_zombie_hunter()
     print("[SmartProctor] Uygulama kapatıldı")
 
 
-# FastAPI uygulaması oluştur
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Destekli Online Sınav Gözetim Sistemi",
@@ -44,7 +32,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Ayarları
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -53,13 +40,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Audit Log Middleware
 app.add_middleware(AuditLogMiddleware)
 
-# Statik dosyalar (video kanıtları)
 app.mount("/evidence", StaticFiles(directory="static/evidence"), name="evidence")
 
-# Router'ları bağla
 app.include_router(auth.router)
 app.include_router(courses.router)
 app.include_router(exams.router)
@@ -71,11 +55,7 @@ app.include_router(extras.router)
 
 @app.get("/")
 async def root():
-    return {
-        "app": settings.APP_NAME,
-        "version": "1.0.0",
-        "docs": "/docs",
-    }
+    return {"app": settings.APP_NAME, "version": "1.0.0", "docs": "/docs"}
 
 
 @app.get("/health")
