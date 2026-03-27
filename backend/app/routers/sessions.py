@@ -134,70 +134,87 @@ async def finish_exam(
     current_user: User = Depends(require_role("student")),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(ExamSession).where(
-            ExamSession.id == session_id,
-            ExamSession.student_id == current_user.id,
+    try:
+        result = await db.execute(
+            select(ExamSession).where(
+                ExamSession.id == session_id,
+                ExamSession.student_id == current_user.id,
+            )
         )
-    )
-    session = result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(status_code=404, detail="Oturum bulunamadi")
+        session = result.scalar_one_or_none()
+        if not session:
+            raise HTTPException(status_code=404, detail="Oturum bulunamadi")
 
-    if session.status.value in ("submitted", "timed_out", "terminated"):
+        if session.status.value in ("submitted", "timed_out", "terminated"):
+            return SessionFinishResponse(
+                session_id=session.id,
+                status=session.status.value,
+                score=float(session.score) if session.score is not None else 0.0,
+                finished_at=session.finished_at or datetime.now(timezone.utc),
+                total_questions=0,
+                correct_answers=0,
+            )
+
+        result2 = await db.execute(
+            select(StudentAnswer.id, StudentAnswer.question_id, StudentAnswer.selected_option_id)
+            .where(StudentAnswer.session_id == session.id)
+        )
+        answers_raw = result2.all()
+
+        correct_count = 0
+        earned_points = 0.0
+
+        result3 = await db.execute(
+            select(Question)
+            .where(Question.exam_id == session.exam_id)
+            .options(selectinload(Question.options))
+        )
+        questions = result3.scalars().unique().all()
+        question_map = {q.id: q for q in questions}
+
+        answer_ids_to_mark = []
+        for row in answers_raw:
+            ans_id, q_id, sel_opt_id = row
+            question = question_map.get(q_id)
+            if question and sel_opt_id:
+                correct_option = next((o for o in question.options if o.is_correct), None)
+                if correct_option and sel_opt_id == correct_option.id:
+                    answer_ids_to_mark.append((ans_id, True))
+                    correct_count += 1
+                    earned_points += float(question.points)
+                else:
+                    answer_ids_to_mark.append((ans_id, False))
+
+        for ans_id, is_correct in answer_ids_to_mark:
+            await db.execute(
+                StudentAnswer.__table__.update()
+                .where(StudentAnswer.__table__.c.id == ans_id)
+                .values(is_correct=is_correct)
+            )
+
+        total_possible = sum(float(q.points) for q in questions)
+        score = round((earned_points / total_possible * 100) if total_possible > 0 else 0.0, 2)
+
+        session.status = SessionStatus.submitted
+        session.finished_at = datetime.now(timezone.utc)
+        session.score = score
+
+        await db.flush()
+
         return SessionFinishResponse(
             session_id=session.id,
-            status=session.status.value,
-            score=session.score,
-            finished_at=session.finished_at or datetime.now(timezone.utc),
-            total_questions=0,
-            correct_answers=0,
+            status="submitted",
+            score=score,
+            finished_at=session.finished_at,
+            total_questions=len(questions),
+            correct_answers=correct_count,
         )
-
-    result = await db.execute(
-        select(StudentAnswer).where(StudentAnswer.session_id == session.id)
-    )
-    answers = result.scalars().all()
-
-    correct_count = 0
-    earned_points = 0
-
-    result = await db.execute(
-        select(Question)
-        .where(Question.exam_id == session.exam_id)
-        .options(selectinload(Question.options))
-    )
-    questions = result.scalars().unique().all()
-    question_map = {q.id: q for q in questions}
-
-    for answer in answers:
-        question = question_map.get(answer.question_id)
-        if question and answer.selected_option_id:
-            correct_option = next((o for o in question.options if o.is_correct), None)
-            if correct_option and answer.selected_option_id == correct_option.id:
-                answer.is_correct = True
-                correct_count += 1
-                earned_points += float(question.points)
-            else:
-                answer.is_correct = False
-
-    total_possible = sum(float(q.points) for q in questions)
-    score = (earned_points / total_possible * 100) if total_possible > 0 else 0
-
-    session.status = SessionStatus.submitted
-    session.finished_at = datetime.now(timezone.utc)
-    session.score = round(score, 2)
-
-    await db.flush()
-
-    return SessionFinishResponse(
-        session_id=session.id,
-        status="submitted",
-        score=session.score,
-        finished_at=session.finished_at,
-        total_questions=len(questions),
-        correct_answers=correct_count,
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Sinav bitirme hatasi: {str(e)} | {tb[-300:]}")
 
 
 @router.post("/tab-switch/{session_id}")
@@ -225,12 +242,29 @@ async def log_tab_switch(
     }
 
 
-@router.get("/my-sessions", response_model=List[SessionResponse])
+@router.get("/my-sessions")
 async def my_sessions(
     current_user: User = Depends(require_role("student")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(ExamSession).where(ExamSession.student_id == current_user.id)
+        select(ExamSession, Exam.title)
+        .join(Exam, Exam.id == ExamSession.exam_id)
+        .where(ExamSession.student_id == current_user.id)
+        .order_by(ExamSession.started_at.desc())
     )
-    return result.scalars().all()
+    rows = result.all()
+    sessions = []
+    for session, exam_title in rows:
+        sessions.append(SessionResponse(
+            id=session.id,
+            exam_id=session.exam_id,
+            exam_title=exam_title,
+            student_id=session.student_id,
+            status=session.status.value,
+            started_at=session.started_at,
+            finished_at=session.finished_at,
+            tab_switch_count=session.tab_switch_count,
+            score=session.score,
+        ))
+    return sessions

@@ -4,9 +4,10 @@ Eğitmen/Gözetmen kaydı için gizli anahtar zorunlu.
 """
 
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import os, uuid
 from app.core.database import get_db
 from app.core.security import (
     hash_password, verify_password,
@@ -118,5 +119,66 @@ async def refresh_token(req: RefreshRequest, db: AsyncSession = Depends(get_db))
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ad, soyad, e-posta ve şifre güncelleme."""
+    from pydantic import BaseModel
+    first_name = req.get("first_name")
+    last_name = req.get("last_name")
+    email = req.get("email")
+    new_password = req.get("new_password")
+    current_password = req.get("current_password")
+
+    if first_name:
+        current_user.first_name = first_name.strip()
+    if last_name:
+        current_user.last_name = last_name.strip()
+    if email and email != current_user.email:
+        existing = await db.execute(select(User).where(User.email == email, User.id != current_user.id))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Bu e-posta zaten kullanımda")
+        current_user.email = email.strip()
+    if new_password:
+        if not current_password:
+            raise HTTPException(status_code=400, detail="Mevcut şifre gereklidir")
+        from app.core.security import verify_password, hash_password
+        if not verify_password(current_password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="Mevcut şifre yanlış")
+        current_user.password_hash = hash_password(new_password)
+
+    await db.flush()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.post("/profile/photo", response_model=UserResponse)
+async def upload_profile_photo(
+    photo: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Profil fotoğrafı yükleme."""
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "profiles")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    ext = os.path.splitext(photo.filename or "photo.jpg")[1] or ".jpg"
+    filename = f"profile_{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(upload_dir, filename)
+
+    content = await photo.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    if hasattr(current_user, 'profile_photo_url'):
+        current_user.profile_photo_url = f"/evidence/profiles/{filename}"
+    await db.flush()
+    await db.refresh(current_user)
     return current_user
 

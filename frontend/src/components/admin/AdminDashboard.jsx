@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { adminAPI } from '../../services/api'
-import { Users, GraduationCap, BookOpen, ClipboardList, Loader2 } from 'lucide-react'
+import { Users, GraduationCap, BookOpen, ClipboardList, Loader2, Shield } from 'lucide-react'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
@@ -67,6 +67,11 @@ export default function AdminDashboard() {
           <GraduationCap className="w-10 h-10 text-green-600 mb-3" />
           <h3 className="font-semibold">Öğrenci Atamaları</h3>
           <p className="text-sm text-gray-500">Öğrencileri derslere kaydet</p>
+        </Link>
+        <Link to="/admin/proctor-assignments" className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition">
+          <Shield className="w-10 h-10 text-indigo-600 mb-3" />
+          <h3 className="font-semibold">Gözetmen Atamaları</h3>
+          <p className="text-sm text-gray-500">Sınavlara atanan gözetmenler</p>
         </Link>
       </div>
     </div>

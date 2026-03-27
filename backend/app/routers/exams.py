@@ -12,7 +12,7 @@ import random
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete as sql_delete
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -215,7 +215,7 @@ async def delete_exam(
     exam = result.scalar_one_or_none()
     if not exam:
         raise HTTPException(status_code=404, detail="Sınav bulunamadı")
-    await db.delete(exam)
+    await db.execute(sql_delete(Exam).where(Exam.id == exam_id))
     await db.flush()
     return {"message": "Sınav silindi"}
 
@@ -286,7 +286,7 @@ async def update_question(
 
     if options_data is not None:
         # Eski seçenekleri sil, yenilerini ekle
-        await db.execute(delete(Option).where(Option.question_id == question_id))
+        await db.execute(sql_delete(Option).where(Option.question_id == question_id))
         for opt_data in options_data:
             option = Option(
                 question_id=question_id, body=opt_data["body"],

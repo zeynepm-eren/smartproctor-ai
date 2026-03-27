@@ -157,30 +157,29 @@ async def log_violation(
     await db.flush()
     await db.refresh(violation)
 
-    # Sadece AI ihlalleri gözetmene atanır
-    if is_ai:
-        result = await db.execute(
-            select(ExamSession).where(ExamSession.id == req.session_id)
-        )
-        session = result.scalar_one_or_none()
+    # Tüm ihlaller gözetmene atanır
+    result = await db.execute(
+        select(ExamSession).where(ExamSession.id == req.session_id)
+    )
+    session = result.scalar_one_or_none()
 
-        if session:
-            proctor_ids = await get_two_random_proctors(session.exam_id, db)
+    if session:
+        proctor_ids = await get_two_random_proctors(session.exam_id, db)
 
-            for pid in proctor_ids:
-                review = ViolationReview(
-                    violation_id=violation.id,
-                    proctor_id=pid,
-                )
-                db.add(review)
+        for pid in proctor_ids:
+            review = ViolationReview(
+                violation_id=violation.id,
+                proctor_id=pid,
+            )
+            db.add(review)
 
-                notif = Notification(
-                    user_id=pid,
-                    title="Yeni AI İhlal İnceleme Talebi",
-                    body=f"İhlal #{violation.id} incelemenizi bekliyor ({violation.violation_type.value})",
-                    link=f"/proctor/review/{violation.id}",
-                )
-                db.add(notif)
+            notif = Notification(
+                user_id=pid,
+                title="Yeni İhlal İnceleme Talebi",
+                body=f"İhlal #{violation.id} incelemenizi bekliyor ({violation.violation_type.value})",
+                link=f"/proctor/review/{violation.id}",
+            )
+            db.add(notif)
 
     await db.flush()
     return violation
@@ -233,7 +232,6 @@ async def get_pending_reviews(
         .where(
             ViolationReview.proctor_id == current_user.id,
             ViolationReview.decision == VerificationDecision.pending,
-            Violation.is_ai_violation == True,
         )
         .options(
             selectinload(Violation.session).selectinload(ExamSession.exam).selectinload(Exam.course)

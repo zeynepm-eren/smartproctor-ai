@@ -42,6 +42,12 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
+  updateProfile: (data) => api.put('/auth/profile', data),
+  uploadProfilePhoto: (file) => {
+    const formData = new FormData()
+    formData.append('photo', file)
+    return api.post('/auth/profile/photo', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
   getUsers: (params) => api.get('/auth/users', { params }),
   deleteUser: (id) => api.delete(`/auth/users/${id}`),
   getInstructors: () => api.get('/auth/instructors'),
@@ -125,6 +131,7 @@ export const notificationAPI = {
 
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
+  getProctorAssignments: () => api.get('/admin/proctor-assignments'),
 }
 
 export default api
