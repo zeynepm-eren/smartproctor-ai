@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { notificationAPI } from '../../services/api'
-import { Shield, Bell, LogOut, Menu, X } from 'lucide-react'
+import { Shield, Bell, LogOut, Menu, X, UserCircle } from 'lucide-react'
 
 export default function Navbar() {
   const { user, logout } = useAuth()
@@ -69,10 +69,19 @@ export default function Navbar() {
               {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{unreadCount}</span>}
             </button>
             <div className="hidden sm:flex items-center gap-3 pl-4 border-l border-gray-200">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{user?.first_name} {user?.last_name}</p>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${roleColor[user?.role]}`}>{roleLabel[user?.role]}</span>
-              </div>
+              <Link to="/profile" className="flex items-center gap-2 hover:bg-gray-50 rounded-lg px-2 py-1 transition">
+                {user?.profile_photo_url ? (
+                  <img src={user.profile_photo_url} alt="profil" className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                    {user?.first_name?.[0]}{user?.last_name?.[0]}
+                  </div>
+                )}
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900">{user?.first_name} {user?.last_name}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${roleColor[user?.role]}`}>{roleLabel[user?.role]}</span>
+                </div>
+              </Link>
               <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"><LogOut size={20} /></button>
             </div>
             <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden p-2 text-gray-600">

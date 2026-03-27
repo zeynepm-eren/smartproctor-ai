@@ -19,6 +19,8 @@ import AdminDashboard from './components/admin/AdminDashboard'
 import AdminCourses from './components/admin/AdminCourses'
 import AdminUsers from './components/admin/AdminUsers'
 import AdminEnrollments from './components/admin/AdminEnrollments'
+import AdminProctorAssignments from './components/admin/AdminProctorAssignments'
+import Profile from './components/profile/Profile'
 
 function HomeRedirect() {
   const { user, loading } = useAuth()
@@ -40,6 +42,13 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/" element={<HomeRedirect />} />
+
+          {/* Profil - tüm roller */}
+          <Route element={<ProtectedRoute allowedRoles={['student', 'instructor', 'proctor', 'admin']} />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+          </Route>
 
           {/* Öğrenci */}
           <Route element={<ProtectedRoute allowedRoles={['student']} />}>
@@ -77,6 +86,7 @@ export default function App() {
               <Route path="/admin/courses" element={<AdminCourses />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/enrollments" element={<AdminEnrollments />} />
+              <Route path="/admin/proctor-assignments" element={<AdminProctorAssignments />} />
             </Route>
           </Route>
 

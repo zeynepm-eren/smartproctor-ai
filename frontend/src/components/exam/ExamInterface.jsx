@@ -13,11 +13,13 @@ export default function ExamInterface() {
   const [answers, setAnswers] = useState({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [browserViolations, setBrowserViolations] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [finished, setFinished] = useState(false)
   const [result, setResult] = useState(null)
   const [showConfirmFinish, setShowConfirmFinish] = useState(false)
   const [initError, setInitError] = useState(null)
+  const [finishError, setFinishError] = useState(null)
+  const [cameraPermission, setCameraPermission] = useState(null)
   const debounceTimer = useRef(null)
   const finishingRef = useRef(false)
 
@@ -25,7 +27,25 @@ export default function ExamInterface() {
   const totalViolations = browserViolations.length + aiViolations.length
 
   useEffect(() => {
+    if (!result) return
+    const t = setTimeout(() => navigate('/student', { replace: true, state: { refresh: Date.now() } }), 3000)
+    return () => clearTimeout(t)
+  }, [result, navigate])
+
+  const requestCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      stream.getTracks().forEach(t => t.stop())
+      setCameraPermission('granted')
+    } catch {
+      setCameraPermission('denied')
+    }
+  }
+
+  useEffect(() => {
+    if (cameraPermission !== 'granted') return
     let retries = 0
+    setLoading(true)
     const initExam = async () => {
       try {
         setInitError(null)
@@ -35,7 +55,8 @@ export default function ExamInterface() {
           return
         }
         setSession(sr.data)
-        setTimeLeft(sr.data.duration_minutes * 60)
+        const elapsed = Math.floor((Date.now() - new Date(sr.data.started_at).getTime()) / 1000)
+        setTimeLeft(Math.max(0, sr.data.duration_minutes * 60 - elapsed))
         const qr = await examAPI.listQuestionsStudent(examId)
         setQuestions(qr.data)
       } catch (err) {
@@ -45,7 +66,7 @@ export default function ExamInterface() {
       } finally { setLoading(false) }
     }
     initExam()
-  }, [examId, navigate])
+  }, [examId, navigate, cameraPermission])
 
   useEffect(() => {
     if (!session || finished) return
@@ -93,13 +114,22 @@ export default function ExamInterface() {
     finishingRef.current = true
     setFinished(true)
     setShowConfirmFinish(false)
-    try {
-      document.exitFullscreen?.().catch(() => {})
-      const r = await sessionAPI.finish(session.session_id)
-      setResult(r.data)
-    } catch {
-      setResult({ score: 0, correct_answers: 0, total_questions: questions.length })
+    setFinishError(null)
+    document.exitFullscreen?.().catch(() => {})
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await sessionAPI.finish(session.session_id)
+        setResult(r.data)
+        return
+      } catch (err) {
+        const msg = err.response?.data?.detail || err.message || 'Bilinmeyen hata'
+        setFinishError(`Hata (deneme ${attempt + 1}/3): ${msg}`)
+        if (attempt < 2) await new Promise(res => setTimeout(res, 800))
+      }
     }
+    // 3 denemeden sonra da başarısız — hatayı göster, kullanıcı tekrar deneyebilir
+    finishingRef.current = false
+    setFinished(false)
   }
 
   const goHome = () => {
@@ -108,6 +138,29 @@ export default function ExamInterface() {
 
   const fmt = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`
   const ac = Object.keys(answers).length
+
+  if (cameraPermission === null) return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+        <Camera className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+        <h2 className="text-xl font-bold mb-2">Kamera İzni Gerekli</h2>
+        <p className="text-gray-500 mb-6">Sınava girebilmek için kameranıza erişim izni vermeniz gerekmektedir.</p>
+        <button onClick={requestCamera} className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium">Kamera İznini Ver</button>
+      </div>
+    </div>
+  )
+
+  if (cameraPermission === 'denied') return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+        <CameraOff className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h2 className="text-xl font-bold mb-2">Kamera Erişimi Reddedildi</h2>
+        <p className="text-gray-500 mb-6">Sınava girebilmek için kamera izni zorunludur. Tarayıcı ayarlarından kamera iznini açın ve tekrar deneyin.</p>
+        <button onClick={requestCamera} className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium">Tekrar Dene</button>
+        <button onClick={goHome} className="ml-3 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium">Ana Sayfaya Dön</button>
+      </div>
+    </div>
+  )
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -138,7 +191,7 @@ export default function ExamInterface() {
             <span className={`text-3xl font-bold ${passed ? 'text-green-600' : 'text-red-600'}`}>{Math.round(result.score)}</span>
           </div>
           <h2 className="text-2xl font-bold mb-2">Sinav {passed ? 'Basarili' : 'Tamamlandi'}</h2>
-          <p className="text-gray-500 mb-2">{result.correct_answers} / {result.total_questions} dogru</p>
+          <p className="text-gray-400 text-sm mt-2">Ana sayfaya yonlendiriliyor...</p>
           <button onClick={goHome} className="px-6 py-3 bg-blue-600 text-white rounded-lg mt-4">Ana Sayfaya Don</button>
         </div>
       </div>
@@ -185,6 +238,13 @@ export default function ExamInterface() {
           </div>
         )}
       </div>
+      {finishError && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-red-900 border border-red-500 text-red-200 px-6 py-3 rounded-xl text-sm max-w-lg text-center shadow-xl">
+          <AlertTriangle size={16} className="inline mr-2" />
+          {finishError}
+          <button onClick={() => { setFinishError(null); setShowConfirmFinish(true) }} className="ml-3 underline text-red-300">Tekrar Dene</button>
+        </div>
+      )}
       {showConfirmFinish && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 border border-gray-600">

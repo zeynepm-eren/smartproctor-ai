@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { courseAPI, authAPI } from '../../services/api'
-import { BookOpen, Plus, UserPlus, UserMinus, X, Loader2, AlertCircle } from 'lucide-react'
+import { BookOpen, Plus, UserPlus, UserMinus, X, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 
 export default function AdminCourses() {
   const [courses, setCourses] = useState([])
@@ -36,6 +36,9 @@ export default function AdminCourses() {
 
   const handleAssign = async (instructorId) => {
     try {
+      if (selectedCourse.instructor) {
+        await courseAPI.removeInstructor(selectedCourse.id)
+      }
       await courseAPI.assignInstructor(selectedCourse.id, instructorId)
       setShowAssignModal(false)
       loadData()
@@ -83,11 +86,26 @@ export default function AdminCourses() {
                     <span className="text-orange-600 flex items-center gap-1"><AlertCircle size={16} /> Atanmadı</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-6 py-4 text-right flex items-center justify-end gap-3">
                   {course.instructor ? (
-                    <button onClick={() => handleRemove(course.id)} className="text-red-600 hover:text-red-700"><UserMinus size={18} /></button>
+                    <>
+                      <button
+                        onClick={() => { setSelectedCourse(course); setShowAssignModal(true) }}
+                        className="text-blue-600 hover:text-blue-700"
+                        title="Eğitmeni Değiştir"
+                      >
+                        <RefreshCw size={17} />
+                      </button>
+                      <button
+                        onClick={() => handleRemove(course.id)}
+                        className="text-red-600 hover:text-red-700"
+                        title="Eğitmeni Kaldır"
+                      >
+                        <UserMinus size={18} />
+                      </button>
+                    </>
                   ) : (
-                    <button onClick={() => { setSelectedCourse(course); setShowAssignModal(true) }} className="text-blue-600 hover:text-blue-700"><UserPlus size={18} /></button>
+                    <button onClick={() => { setSelectedCourse(course); setShowAssignModal(true) }} className="text-blue-600 hover:text-blue-700" title="Eğitmen Ata"><UserPlus size={18} /></button>
                   )}
                 </td>
               </tr>

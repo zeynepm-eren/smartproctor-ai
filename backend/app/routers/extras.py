@@ -14,6 +14,7 @@ from app.models.user import User, UserRole
 from app.models.exam import Exam
 from app.models.session import ExamSession
 from app.models.course import Course
+from app.models.proctor import ProctorAssignment
 from app.schemas.session import SessionResponse
 from pydantic import BaseModel
 
@@ -126,6 +127,35 @@ async def list_proctors(
         select(User).where(User.role == UserRole.proctor, User.is_active == True)
     )
     return result.scalars().all()
+
+
+@router.get("/api/admin/proctor-assignments")
+async def admin_proctor_assignments(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: Hangi sınava hangi gözetmenler atanmış listesi."""
+    result = await db.execute(
+        select(ProctorAssignment, Exam, User, Course)
+        .join(Exam, Exam.id == ProctorAssignment.exam_id)
+        .join(User, User.id == ProctorAssignment.proctor_id)
+        .join(Course, Course.id == Exam.course_id)
+        .order_by(Exam.id)
+    )
+    rows = result.all()
+    assignments = []
+    for pa, exam, proctor, course in rows:
+        assignments.append({
+            "exam_id": exam.id,
+            "exam_title": exam.title,
+            "course_name": course.name,
+            "course_code": course.code,
+            "proctor_id": proctor.id,
+            "proctor_name": f"{proctor.first_name} {proctor.last_name}",
+            "proctor_email": proctor.email,
+            "assigned_at": pa.assigned_at.isoformat() if pa.assigned_at else None,
+        })
+    return assignments
 
 
 @router.get("/api/sessions/exam/{exam_id}/results", response_model=List[SessionResponse])

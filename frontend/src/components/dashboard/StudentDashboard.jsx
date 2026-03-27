@@ -28,7 +28,7 @@ export default function StudentDashboard() {
     }
   }
 
-  useEffect(() => { fetchData() }, [location.state])
+  useEffect(() => { fetchData() }, [location.key])
 
   const getSessionForExam = (examId) => sessions.find((s) => s.exam_id === examId)
 
@@ -84,14 +84,11 @@ export default function StudentDashboard() {
                 <div className="text-sm text-gray-500 mb-4 space-y-1">
                   <p className="flex items-center gap-2"><Clock size={14} /> {exam.duration_minutes} dakika</p>
                   {exam.question_count > 0 && <p>{exam.question_count} soru</p>}
-                  {isCompleted && session?.score !== null && session?.score !== undefined && (
-                    <p className="font-medium text-gray-700">Puan: {session.score}</p>
-                  )}
                 </div>
 
                 {isCompleted && (
                   <div className="w-full py-2.5 text-center text-green-600 text-sm bg-green-50 rounded-lg font-medium">
-                    Sinav tamamlandi {session?.score !== null ? `- ${session.score} puan` : ''}
+                    Sınav tamamlandı
                   </div>
                 )}
 

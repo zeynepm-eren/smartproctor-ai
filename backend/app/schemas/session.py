@@ -46,6 +46,7 @@ class SessionFinishResponse(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     exam_id: int
+    exam_title: Optional[str] = None
     student_id: int
     status: str
     started_at: datetime

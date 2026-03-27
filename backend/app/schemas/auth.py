@@ -37,5 +37,6 @@ class UserResponse(BaseModel):
     last_name: str
     role: str
     is_active: bool
+    profile_photo_url: Optional[str] = None
     class Config:
         from_attributes = True
