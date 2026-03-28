@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { examAPI } from '../../services/api'
-import { ArrowLeft, Plus, Trash2, Save, CheckCircle, Play, Pause, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, CheckCircle, Play, Pause, BarChart3, Download, Upload, Image } from 'lucide-react'
+
+const TYPE_LABELS = { multiple_choice: 'Test', true_false: 'Doğru/Yanlış', open_ended: 'Klasik' }
+const TYPE_COLORS = { multiple_choice: 'bg-green-100 text-green-700', true_false: 'bg-blue-100 text-blue-700', open_ended: 'bg-orange-100 text-orange-700' }
 
 export default function ExamEdit() {
   const { examId } = useParams()
@@ -11,6 +14,8 @@ export default function ExamEdit() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [newQuestion, setNewQuestion] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const newQImageRef = useRef(null)
 
   useEffect(() => {
     Promise.all([examAPI.get(examId), examAPI.listQuestions(examId)])
@@ -55,19 +60,63 @@ export default function ExamEdit() {
     } catch (err) { alert(err.response?.data?.detail || 'Silinemedi') }
   }
 
-  const initNewQuestion = () => setNewQuestion({
-    question_type: 'multiple_choice', body: '', points: 10, sort_order: questions.length + 1, explanation: '',
-    options: [{ body: '', is_correct: false, sort_order: 1 }, { body: '', is_correct: false, sort_order: 2 },
-              { body: '', is_correct: true, sort_order: 3 }, { body: '', is_correct: false, sort_order: 4 }],
-  })
+  const initNewQuestion = (type = 'multiple_choice') => {
+    const base = {
+      question_type: type, body: '', points: 10, sort_order: questions.length + 1,
+      explanation: '', image_url: null, image_file: null, image_preview: null,
+    }
+    if (type === 'open_ended') {
+      setNewQuestion({ ...base, options: [] })
+    } else {
+      setNewQuestion({
+        ...base,
+        options: [
+          { body: '', is_correct: false, sort_order: 1 }, { body: '', is_correct: false, sort_order: 2 },
+          { body: '', is_correct: true, sort_order: 3 }, { body: '', is_correct: false, sort_order: 4 },
+        ],
+      })
+    }
+  }
+
+  const handleNewQImage = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setNewQuestion(prev => ({ ...prev, image_file: file, image_preview: URL.createObjectURL(file) }))
+    e.target.value = ''
+  }
 
   const saveNewQuestion = async () => {
     if (!newQuestion.body) return alert('Soru metni boş olamaz')
     try {
-      const res = await examAPI.addQuestion(examId, newQuestion)
+      let image_url = newQuestion.image_url
+      if (newQuestion.image_file) {
+        const imgRes = await examAPI.uploadQuestionImage(examId, newQuestion.image_file)
+        image_url = imgRes.data.image_url
+      }
+      const qData = {
+        question_type: newQuestion.question_type, body: newQuestion.body,
+        points: newQuestion.points, sort_order: newQuestion.sort_order,
+        explanation: newQuestion.explanation || null, image_url: image_url || null,
+        options: newQuestion.options,
+      }
+      const res = await examAPI.addQuestion(examId, qData)
       setQuestions([...questions, res.data])
       setNewQuestion(null)
     } catch (err) { alert(err.response?.data?.detail || 'Soru eklenemedi') }
+  }
+
+  const handleExportXml = async () => {
+    setExporting(true)
+    try {
+      const res = await examAPI.exportQuestionsXml(examId)
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${exam.title || 'sorular'}.xml`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) { alert('XML dışa aktarma hatası') }
+    finally { setExporting(false) }
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" /></div>
@@ -101,51 +150,134 @@ export default function ExamEdit() {
         </div>
       </div>
 
+      {/* Sorular */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Sorular ({questions.length})</h2>
-          <button onClick={initNewQuestion} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"><Plus size={18} /> Soru Ekle</button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {questions.length > 0 && (
+              <button onClick={handleExportXml} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-50">
+                <Download size={16} /> {exporting ? 'İndiriliyor...' : 'XML İndir'}
+              </button>
+            )}
+            <button onClick={() => initNewQuestion('multiple_choice')} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"><Plus size={18} /> Test Sorusu</button>
+            <button onClick={() => initNewQuestion('open_ended')} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"><Plus size={18} /> Klasik Soru</button>
+          </div>
         </div>
+
         {questions.map((q, idx) => (
-          <div key={q.id} className="bg-white rounded-xl shadow-sm border p-5 mb-3">
+          <div key={q.id} className={`bg-white rounded-xl shadow-sm border p-5 mb-3 ${q.question_type === 'open_ended' ? 'border-l-4 border-l-orange-400' : 'border-l-4 border-l-green-400'}`}>
             <div className="flex items-start justify-between mb-2">
-              <h4 className="font-medium text-gray-900">Soru {idx + 1} ({q.points} puan)</h4>
+              <div className="flex items-center gap-2">
+                <h4 className="font-medium text-gray-900">Soru {idx + 1} ({parseFloat(q.points)} puan)</h4>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_COLORS[q.question_type] || 'bg-gray-100'}`}>
+                  {TYPE_LABELS[q.question_type] || q.question_type}
+                </span>
+              </div>
               <button onClick={() => deleteQuestion(q.id)} className="text-red-400 hover:text-red-600" title="Soruyu sil"><Trash2 size={16} /></button>
             </div>
             <p className="text-gray-700 mb-3">{q.body}</p>
-            <div className="space-y-1">
-              {q.options?.map((opt) => (
-                <div key={opt.id} className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded ${opt.is_correct ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-600'}`}>
-                  {opt.is_correct ? <CheckCircle size={14} className="text-green-500" /> : <div className="w-3.5 h-3.5 rounded-full border border-gray-300" />}
-                  {opt.body}
+            {q.image_url && (
+              <div className="mb-3">
+                <img src={q.image_url} alt="Soru görseli" className="max-h-40 rounded-lg border" />
+              </div>
+            )}
+            {q.question_type === 'open_ended' ? (
+              q.explanation && (
+                <div className="bg-orange-50 rounded-lg p-3 text-sm text-orange-800">
+                  <span className="font-medium">Beklenen Cevap:</span> {q.explanation}
                 </div>
-              ))}
-            </div>
+              )
+            ) : (
+              <div className="space-y-1">
+                {q.options?.map((opt) => (
+                  <div key={opt.id} className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded ${opt.is_correct ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-600'}`}>
+                    {opt.is_correct ? <CheckCircle size={14} className="text-green-500" /> : <div className="w-3.5 h-3.5 rounded-full border border-gray-300" />}
+                    {opt.body}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
+      {/* Yeni Soru Ekleme Formu */}
       {newQuestion && (
-        <div className="bg-blue-50 rounded-xl border-2 border-blue-200 p-6 mb-6">
-          <h3 className="font-semibold text-blue-900 mb-4">Yeni Soru</h3>
-          <textarea value={newQuestion.body} onChange={(e) => setNewQuestion({...newQuestion, body: e.target.value})} placeholder="Soru metni..." className="w-full px-3 py-2 border rounded-lg mb-3" rows={2} />
-          <div className="space-y-2 mb-4">
-            {newQuestion.options.map((opt, oIdx) => (
-              <div key={oIdx} className="flex items-center gap-3">
-                <input type="radio" name="new-correct" checked={opt.is_correct} onChange={() => {
-                  const opts = newQuestion.options.map((o, i) => ({...o, is_correct: i === oIdx}))
-                  setNewQuestion({...newQuestion, options: opts})
-                }} />
-                <input value={opt.body} placeholder={`Seçenek ${String.fromCharCode(65+oIdx)}`} onChange={(e) => {
-                  const opts = [...newQuestion.options]; opts[oIdx] = {...opts[oIdx], body: e.target.value}
-                  setNewQuestion({...newQuestion, options: opts})
-                }} className="flex-1 px-3 py-1.5 border rounded-lg text-sm" />
-              </div>
-            ))}
+        <div className={`rounded-xl border-2 p-6 mb-6 ${newQuestion.question_type === 'open_ended' ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">Yeni {newQuestion.question_type === 'open_ended' ? 'Klasik' : 'Test'} Sorusu</h3>
+            <select
+              value={newQuestion.question_type}
+              onChange={(e) => {
+                const type = e.target.value
+                if (type === 'open_ended') {
+                  setNewQuestion({ ...newQuestion, question_type: type, options: [] })
+                } else {
+                  setNewQuestion({
+                    ...newQuestion, question_type: type,
+                    options: newQuestion.options.length > 0 ? newQuestion.options : [
+                      { body: '', is_correct: false, sort_order: 1 }, { body: '', is_correct: false, sort_order: 2 },
+                      { body: '', is_correct: true, sort_order: 3 }, { body: '', is_correct: false, sort_order: 4 },
+                    ],
+                  })
+                }
+              }}
+              className="text-sm px-3 py-1.5 border rounded-lg bg-white"
+            >
+              <option value="multiple_choice">Test (Çoktan Seçmeli)</option>
+              <option value="open_ended">Klasik (Açık Uçlu)</option>
+            </select>
           </div>
+
+          <textarea value={newQuestion.body} onChange={(e) => setNewQuestion({...newQuestion, body: e.target.value})} placeholder="Soru metni..." className="w-full px-3 py-2 border rounded-lg mb-3" rows={2} />
+
+          {/* Görsel ekleme */}
+          <div className="mb-3">
+            {newQuestion.image_preview ? (
+              <div className="relative inline-block">
+                <img src={newQuestion.image_preview} alt="Görsel" className="max-h-32 rounded-lg border" />
+                <button onClick={() => setNewQuestion({...newQuestion, image_file: null, image_preview: null, image_url: null})} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"><Trash2 size={12} /></button>
+              </div>
+            ) : (
+              <>
+                <button onClick={() => newQImageRef.current?.click()} className="flex items-center gap-2 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-500 text-sm">
+                  <Image size={16} /> Görsel Ekle
+                </button>
+                <input ref={newQImageRef} type="file" accept="image/*" onChange={handleNewQImage} className="hidden" />
+              </>
+            )}
+          </div>
+
+          {/* Klasik soru için beklenen cevap */}
+          {newQuestion.question_type === 'open_ended' && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Beklenen Cevap / Açıklama</label>
+              <textarea value={newQuestion.explanation || ''} onChange={(e) => setNewQuestion({...newQuestion, explanation: e.target.value})} placeholder="Beklenen cevabı yazın..." className="w-full px-3 py-2 border rounded-lg" rows={3} />
+            </div>
+          )}
+
+          {/* Test sorusu seçenekleri */}
+          {newQuestion.question_type !== 'open_ended' && (
+            <div className="space-y-2 mb-4">
+              {newQuestion.options.map((opt, oIdx) => (
+                <div key={oIdx} className="flex items-center gap-3">
+                  <input type="radio" name="new-correct" checked={opt.is_correct} onChange={() => {
+                    const opts = newQuestion.options.map((o, i) => ({...o, is_correct: i === oIdx}))
+                    setNewQuestion({...newQuestion, options: opts})
+                  }} />
+                  <input value={opt.body} placeholder={`Seçenek ${String.fromCharCode(65+oIdx)}`} onChange={(e) => {
+                    const opts = [...newQuestion.options]; opts[oIdx] = {...opts[oIdx], body: e.target.value}
+                    setNewQuestion({...newQuestion, options: opts})
+                  }} className="flex-1 px-3 py-1.5 border rounded-lg text-sm" />
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-3">
-            <button onClick={saveNewQuestion} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Kaydet</button>
-            <button onClick={() => setNewQuestion(null)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">İptal</button>
+            <button onClick={saveNewQuestion} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Kaydet</button>
+            <button onClick={() => setNewQuestion(null)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">İptal</button>
           </div>
         </div>
       )}

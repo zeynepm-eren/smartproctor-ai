@@ -28,3 +28,5 @@ backend/static/evidence/*.webm
 backend/package-lock.json
 backend/package.json
 docker-compose.yml
+
+.claude/

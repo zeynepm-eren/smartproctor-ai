@@ -10,7 +10,7 @@ SET search_path TO smartproctor;
 -- 0. ENUM TİPLERİ
 CREATE TYPE user_role AS ENUM ('student', 'instructor', 'proctor', 'admin');
 CREATE TYPE exam_status AS ENUM ('draft', 'scheduled', 'active', 'completed', 'cancelled');
-CREATE TYPE question_type AS ENUM ('multiple_choice', 'true_false');
+CREATE TYPE question_type AS ENUM ('multiple_choice', 'true_false', 'open_ended');
 CREATE TYPE session_status AS ENUM ('started', 'in_progress', 'submitted', 'timed_out', 'terminated');
 CREATE TYPE violation_type AS ENUM (
     'TAB_SWITCH', 'FULLSCREEN_EXIT', 'COPY_PASTE', 'RIGHT_CLICK',
@@ -93,6 +93,7 @@ CREATE TABLE questions (
     exam_id       BIGINT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
     question_type question_type NOT NULL DEFAULT 'multiple_choice',
     body          TEXT NOT NULL,
+    image_url     VARCHAR(512),
     points        NUMERIC(5,2) NOT NULL DEFAULT 1.00,
     sort_order    INT NOT NULL DEFAULT 0,
     explanation   TEXT,
