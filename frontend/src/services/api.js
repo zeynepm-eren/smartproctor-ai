@@ -80,6 +80,21 @@ export const examAPI = {
   deleteQuestion: (examId, questionId) => api.delete(`/exams/${examId}/questions/${questionId}`),
   listQuestions: (examId) => api.get(`/exams/${examId}/questions`),
   listQuestionsStudent: (examId) => api.get(`/exams/${examId}/questions/student`),
+  uploadQuestionsXml: (examId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/exams/${examId}/questions/upload-xml`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  exportQuestionsXml: (examId) => api.get(`/exams/${examId}/questions/export-xml`, { responseType: 'blob' }),
+  uploadQuestionImage: (examId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/exams/${examId}/questions/upload-image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export const sessionAPI = {
@@ -132,6 +147,11 @@ export const notificationAPI = {
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
   getProctorAssignments: () => api.get('/admin/proctor-assignments'),
+  addProctorAssignment: (examId, proctorId) => api.post('/admin/proctor-assignments', { exam_id: examId, proctor_id: proctorId }),
+  removeProctorAssignment: (examId, proctorId) => api.delete(`/admin/proctor-assignments/${examId}/${proctorId}`),
+  swapProctor: (examId, oldProctorId, newProctorId) => api.post('/admin/proctor-assignments/swap', {
+    exam_id: examId, old_proctor_id: oldProctorId, new_proctor_id: newProctorId,
+  }),
 }
 
 export default api

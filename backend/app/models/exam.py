@@ -23,6 +23,7 @@ class ExamStatus(str, enum.Enum):
 class QuestionType(str, enum.Enum):
     multiple_choice = "multiple_choice"
     true_false = "true_false"
+    open_ended = "open_ended"
 
 
 class Exam(Base):
@@ -69,6 +70,7 @@ class Question(Base):
         default=QuestionType.multiple_choice,
     )
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     points: Mapped[float] = mapped_column(Numeric(5, 2), default=1.00)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -33,6 +33,7 @@ class OptionResponseStudent(BaseModel):
 class QuestionCreate(BaseModel):
     question_type: str = "multiple_choice"
     body: str
+    image_url: Optional[str] = None
     points: float = 1.0
     sort_order: int = 0
     explanation: Optional[str] = None
@@ -42,6 +43,7 @@ class QuestionCreate(BaseModel):
 class QuestionUpdate(BaseModel):
     question_type: Optional[str] = None
     body: Optional[str] = None
+    image_url: Optional[str] = None
     points: Optional[float] = None
     sort_order: Optional[int] = None
     explanation: Optional[str] = None
@@ -53,6 +55,7 @@ class QuestionResponse(BaseModel):
     exam_id: int
     question_type: str
     body: str
+    image_url: Optional[str] = None
     points: float
     sort_order: int
     explanation: Optional[str]
@@ -65,6 +68,7 @@ class QuestionResponseStudent(BaseModel):
     id: int
     question_type: str
     body: str
+    image_url: Optional[str] = None
     points: float
     sort_order: int
     options: List[OptionResponseStudent] = []

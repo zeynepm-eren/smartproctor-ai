@@ -11,6 +11,7 @@ export default function ExamInterface() {
   const [questions, setQuestions] = useState([])
   const [currentIdx, setCurrentIdx] = useState(0)
   const [answers, setAnswers] = useState({})
+  const [openAnswers, setOpenAnswers] = useState({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [browserViolations, setBrowserViolations] = useState([])
   const [loading, setLoading] = useState(false)
@@ -225,12 +226,25 @@ export default function ExamInterface() {
         {cq && (
           <div className="bg-gray-800 rounded-xl p-8 border border-gray-700">
             <div className="flex items-center justify-between mb-6"><span className="text-gray-400 text-sm">Soru {currentIdx+1} / {questions.length}</span><span className="text-gray-400 text-sm">{cq.points} puan</span></div>
-            <h3 className="text-white text-xl mb-8 leading-relaxed">{cq.body}</h3>
+            <h3 className="text-white text-xl mb-4 leading-relaxed">{cq.body}</h3>
+            {cq.image_url && <img src={cq.image_url} alt="Soru görseli" className="max-h-64 rounded-lg border border-gray-600 mb-6" />}
+            {cq.question_type === 'open_ended' ? (
+              <div className="mb-4">
+                <textarea
+                  value={openAnswers[cq.id] || ''}
+                  onChange={(e) => setOpenAnswers(prev => ({ ...prev, [cq.id]: e.target.value }))}
+                  placeholder="Cevabınızı buraya yazın..."
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  rows={5}
+                />
+              </div>
+            ) : (
             <div className="space-y-3">{cq.options.map(o => (
               <button key={o.id} onClick={() => saveAnswer(cq.id, o.id)} className={`w-full text-left p-4 rounded-lg border transition ${answers[cq.id] === o.id ? 'border-blue-500 bg-blue-600/20 text-blue-200' : 'border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-400'}`}>
                 <div className="flex items-center gap-3"><div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${answers[cq.id] === o.id ? 'border-blue-500 bg-blue-500' : 'border-gray-500'}`}>{answers[cq.id] === o.id && <div className="w-2.5 h-2.5 rounded-full bg-white"/>}</div><span>{o.body}</span></div>
               </button>
             ))}</div>
+            )}
             <div className="flex justify-between mt-8">
               <button onClick={() => setCurrentIdx(Math.max(0,currentIdx-1))} disabled={currentIdx===0} className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-gray-300 rounded-lg disabled:opacity-30"><ChevronLeft size={18}/> Onceki</button>
               <button onClick={() => setCurrentIdx(Math.min(questions.length-1,currentIdx+1))} disabled={currentIdx===questions.length-1} className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-gray-300 rounded-lg disabled:opacity-30">Sonraki <ChevronRight size={18}/></button>

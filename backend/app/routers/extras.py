@@ -7,7 +7,7 @@ Gözetmen ata özelliği kaldırıldı (otomatik rastgele atanıyor).
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update as sql_update
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User, UserRole
@@ -15,6 +15,7 @@ from app.models.exam import Exam
 from app.models.session import ExamSession
 from app.models.course import Course
 from app.models.proctor import ProctorAssignment
+from app.models.violation import ViolationReview, VerificationDecision, Violation
 from app.schemas.session import SessionResponse
 from pydantic import BaseModel
 
@@ -156,6 +157,157 @@ async def admin_proctor_assignments(
             "assigned_at": pa.assigned_at.isoformat() if pa.assigned_at else None,
         })
     return assignments
+
+
+class ProctorAssignRequest(BaseModel):
+    exam_id: int
+    proctor_id: int
+
+
+class ProctorSwapRequest(BaseModel):
+    exam_id: int
+    old_proctor_id: int
+    new_proctor_id: int
+
+
+@router.post("/api/admin/proctor-assignments")
+async def admin_add_proctor(
+    req: ProctorAssignRequest,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: Sınava gözetmen ekler."""
+    # Sınav kontrolü
+    exam = await db.execute(select(Exam).where(Exam.id == req.exam_id))
+    if not exam.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Sınav bulunamadı")
+
+    # Gözetmen kontrolü
+    proctor = await db.execute(
+        select(User).where(User.id == req.proctor_id, User.role == UserRole.proctor, User.is_active == True)
+    )
+    if not proctor.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Gözetmen bulunamadı")
+
+    # Zaten atanmış mı?
+    existing = await db.execute(
+        select(ProctorAssignment).where(
+            ProctorAssignment.exam_id == req.exam_id,
+            ProctorAssignment.proctor_id == req.proctor_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Bu gözetmen zaten bu sınava atanmış")
+
+    assignment = ProctorAssignment(exam_id=req.exam_id, proctor_id=req.proctor_id)
+    db.add(assignment)
+    await db.flush()
+    return {"message": "Gözetmen başarıyla atandı"}
+
+
+@router.delete("/api/admin/proctor-assignments/{exam_id}/{proctor_id}")
+async def admin_remove_proctor(
+    exam_id: int,
+    proctor_id: int,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: Sınavdan gözetmen çıkarır."""
+    result = await db.execute(
+        select(ProctorAssignment).where(
+            ProctorAssignment.exam_id == exam_id,
+            ProctorAssignment.proctor_id == proctor_id,
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Atama bulunamadı")
+
+    await db.delete(assignment)
+    await db.flush()
+    return {"message": "Gözetmen ataması kaldırıldı"}
+
+
+@router.post("/api/admin/proctor-assignments/swap")
+async def admin_swap_proctor(
+    req: ProctorSwapRequest,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: Gözetmeni değiştirir ve bekleyen ihlal incelemelerini yeni gözetmene aktarır."""
+    if req.old_proctor_id == req.new_proctor_id:
+        raise HTTPException(status_code=400, detail="Eski ve yeni gözetmen aynı olamaz")
+
+    # Sınav kontrolü
+    exam_result = await db.execute(select(Exam).where(Exam.id == req.exam_id))
+    if not exam_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Sınav bulunamadı")
+
+    # Eski gözetmen atanmış mı?
+    old_assignment = await db.execute(
+        select(ProctorAssignment).where(
+            ProctorAssignment.exam_id == req.exam_id,
+            ProctorAssignment.proctor_id == req.old_proctor_id,
+        )
+    )
+    old_assign = old_assignment.scalar_one_or_none()
+    if not old_assign:
+        raise HTTPException(status_code=404, detail="Eski gözetmen bu sınava atanmamış")
+
+    # Yeni gözetmen geçerli mi?
+    new_proctor = await db.execute(
+        select(User).where(User.id == req.new_proctor_id, User.role == UserRole.proctor, User.is_active == True)
+    )
+    if not new_proctor.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Yeni gözetmen bulunamadı")
+
+    # Yeni gözetmen zaten atanmış mı?
+    existing = await db.execute(
+        select(ProctorAssignment).where(
+            ProctorAssignment.exam_id == req.exam_id,
+            ProctorAssignment.proctor_id == req.new_proctor_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Yeni gözetmen zaten bu sınava atanmış")
+
+    # Bu sınavın tüm oturumlarını bul
+    sessions_result = await db.execute(
+        select(ExamSession.id).where(ExamSession.exam_id == req.exam_id)
+    )
+    session_ids = [row[0] for row in sessions_result.fetchall()]
+
+    transferred_count = 0
+    if session_ids:
+        # Bu oturumlardaki ihlalleri bul
+        violations_result = await db.execute(
+            select(Violation.id).where(Violation.session_id.in_(session_ids))
+        )
+        violation_ids = [row[0] for row in violations_result.fetchall()]
+
+        if violation_ids:
+            # Eski gözetmenin bekleyen (pending) incelemelerini yeni gözetmene aktar
+            update_result = await db.execute(
+                sql_update(ViolationReview)
+                .where(
+                    ViolationReview.violation_id.in_(violation_ids),
+                    ViolationReview.proctor_id == req.old_proctor_id,
+                    ViolationReview.decision == VerificationDecision.pending,
+                )
+                .values(proctor_id=req.new_proctor_id)
+            )
+            transferred_count = update_result.rowcount
+
+    # Gözetmen atamasını değiştir: eski çıkar, yeni ekle
+    await db.delete(old_assign)
+    new_assignment = ProctorAssignment(exam_id=req.exam_id, proctor_id=req.new_proctor_id)
+    db.add(new_assignment)
+    await db.flush()
+
+    return {
+        "message": f"Gözetmen değiştirildi. {transferred_count} bekleyen inceleme yeni gözetmene aktarıldı.",
+        "transferred_reviews": transferred_count,
+    }
 
 
 @router.get("/api/sessions/exam/{exam_id}/results", response_model=List[SessionResponse])
